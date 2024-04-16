@@ -1,0 +1,30 @@
+version: '3'
+
+services:
+  pg:
+    image: postgres:16
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    expose:
+      - "5432"
+    ports:
+      - "5432:5432"
+    env_file:
+      - ../postgres_to_es/.env
+
+  es:
+    image: elasticsearch:8.6.2
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    expose:
+      - "9200"
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+
+volumes:
+  postgres_data:
+    external: true
+  elasticsearch_data:
