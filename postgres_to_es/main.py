@@ -2,7 +2,7 @@ import time
 
 from etl import movies_database, search_engine
 
-_MOVIES_DATABASE_UPDATES_CHECK_PERIOD_SECONDS = 5
+_MOVIES_DATABASE_UPDATES_CHECK_PERIOD_SECONDS = 10
 
 
 def main() -> None:
@@ -11,6 +11,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    search_engine.create_index()
     while True:
         main()
         time.sleep(_MOVIES_DATABASE_UPDATES_CHECK_PERIOD_SECONDS)

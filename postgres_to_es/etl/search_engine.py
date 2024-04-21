@@ -8,11 +8,13 @@ from pydantic import BaseModel, model_validator
 from dotenv import load_dotenv
 
 from etl.backoff import backoff
+from etl.logger import logger
 
 load_dotenv()
 
 _SEARCH_ENGINE_HOST = os.environ.get('ELASTIC_SEARCH_HOST')
 _SEARCH_ENGINE_PORT = os.environ.get('ELASTIC_SEARCH_PORT')
+_INDEX_NAME = "movies"
 
 
 class SearchEngineFilmwork(BaseModel):
@@ -42,17 +44,39 @@ class SearchEngineFilmwork(BaseModel):
 def load(filmworks: List[SearchEngineFilmwork]) -> None:
     response = httpx.post(
         f"http://{_SEARCH_ENGINE_HOST}:{_SEARCH_ENGINE_PORT}/_bulk",
-        content=_form_data(filmworks),
+        content=_form_content(filmworks),
         headers={"Content-Type": "application/x-ndjson"}
     )
     response.raise_for_status()
 
 
-def _form_data(filmworks: List[SearchEngineFilmwork]) -> str:
+def create_index() -> None:
+    try:
+        response = httpx.put(
+            f"http://{_SEARCH_ENGINE_HOST}:{_SEARCH_ENGINE_PORT}/{_INDEX_NAME}",
+            content=_get_index_schema(),
+            headers={"Content-Type": "application/json"},
+        )
+        response.raise_for_status()
+        logger.info(f"Created new index: {_INDEX_NAME}")
+    except httpx.HTTPStatusError as e:
+        if not e.response.status_code == httpx.codes.BAD_REQUEST:
+            raise
+        error_type = (e.response.json().get("error") or {}).get("type")
+        if error_type != "resource_already_exists_exception":
+            raise
+
+
+def _get_index_schema() -> str:
+    with open("./schema_es.json", encoding="utf-8") as f:
+        return f.read()
+
+
+def _form_content(filmworks: List[SearchEngineFilmwork]) -> str:
     filmworks_items = []
     for fw in filmworks:
         filmworks_items += [
-            json.dumps({"index": {"_index": "movies", "_id": str(fw.id)}}),
+            json.dumps({"index": {"_index": _INDEX_NAME, "_id": str(fw.id)}}),
             fw.json(),
         ]
     return os.linesep.join(filmworks_items) + os.linesep
