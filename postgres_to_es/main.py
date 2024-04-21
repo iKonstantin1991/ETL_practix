@@ -5,7 +5,7 @@ from etl import movies_database, search_engine
 _MOVIES_DATABASE_UPDATES_CHECK_PERIOD_SECONDS = 5
 
 
-def main():
+def main() -> None:
     for filmworks_chunk in movies_database.get_updated_filmworks():
         search_engine.load(filmworks_chunk)
 

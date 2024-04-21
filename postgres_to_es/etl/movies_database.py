@@ -102,7 +102,7 @@ def _get_filmworks_by_ids(filmwork_ids: List[UUID]) -> List[SearchEngineFilmwork
 
 
 @backoff(exceptions=(OperationalError,))
-def _db_execute(cmd: str) -> Dict[str, Any]:
+def _db_execute(cmd: str) -> List[Dict[str, Any]]:
     with conn_pool.connection() as conn:
         conn.row_factory=dict_row
         return conn.execute(cmd).fetchall()
@@ -137,11 +137,12 @@ def _build_sql_requesting_filmworks_ids_with_entity(
 
 
 def _build_sql_requesting_filmworks(ids: Optional[List[UUID]] = None,
-                                    last_seen_modified: datetime = None) -> str:
+                                    last_seen_modified: Optional[datetime] = None) -> str:
     if ids:
         normalized_ids = ' ,'.join([f"'{str(p)}'" for p in ids])
         condition, limit = f"WHERE fw.id IN ({normalized_ids})", ""
     else:
+        assert last_seen_modified is not None
         condition, limit = f"WHERE fw.modified > '{last_seen_modified.isoformat()}'", f"LIMIT {_CHUNK_SIZE}"
     return f"""
         SELECT fw.id,

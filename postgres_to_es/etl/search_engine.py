@@ -42,7 +42,7 @@ class SearchEngineFilmwork(BaseModel):
 def load(filmworks: List[SearchEngineFilmwork]) -> None:
     response = httpx.post(
         f"http://{_SEARCH_ENGINE_HOST}:{_SEARCH_ENGINE_PORT}/_bulk",
-        data=_form_data(filmworks),
+        content=_form_data(filmworks),
         headers={"Content-Type": "application/x-ndjson"}
     )
     response.raise_for_status()
