@@ -17,7 +17,7 @@ redis = Redis(
 )
 
 
-def set(key: str, value: datetime) -> None:
+def save(key: str, value: datetime) -> None:
     redis.hset(_STATE_KEY, key, value.isoformat())
 
 

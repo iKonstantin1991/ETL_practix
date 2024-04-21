@@ -3,9 +3,9 @@ from typing import Any, Dict, List, Iterator, Optional
 from uuid import UUID
 from datetime import datetime
 
-import psycopg
 from psycopg.rows import dict_row
 from psycopg.errors import OperationalError
+from psycopg_pool import ConnectionPool
 from dotenv import load_dotenv
 
 from etl.search_engine import SearchEngineFilmwork
@@ -21,7 +21,7 @@ conninfo = ("postgresql://"
             f"{os.environ.get('POSTGRES_USER')}:{os.environ.get('POSTGRES_PASSWORD')}@"
             f"{os.environ.get('POSTGRES_HOST')}:{os.environ.get('POSTGRES_PORT')}/"
             f"{os.environ.get('POSTGRES_DB')}")
-conn = psycopg.connect(conninfo, row_factory=dict_row)
+conn_pool = ConnectionPool(conninfo, min_size=1, max_size=1)
 
 
 def get_updated_filmworks() -> Iterator[List[SearchEngineFilmwork]]:
@@ -50,7 +50,7 @@ def _get_updated_filmworks() -> Iterator[List[SearchEngineFilmwork]]:
         cmd = _build_sql_requesting_filmworks(last_seen_modified=last_seen_modified)
         filmworks = _db_execute(cmd)
         if filmworks:
-            state.set(state_key, filmworks[-1]["modified"])
+            state.save(state_key, filmworks[-1]["modified"])
             seen_filmworks_count += len(filmworks)
             yield _normalize_filmworks(filmworks)
         else:
@@ -73,7 +73,7 @@ def _get_updated_related_entities_ids(entity: str) -> Iterator[List[UUID]]:
         cmd = _build_sql_requesting_entity(entity, last_seen_modified)
         entities = _db_execute(cmd)
         if entities:
-            state.set(state_key, entities[-1]["modified"])
+            state.save(state_key, entities[-1]["modified"])
             seen_entities_count += len(entities)
             yield [e["id"] for e in entities]
         else:
@@ -89,7 +89,7 @@ def _get_filmworks_ids_with_related_entities(entity: str, entity_ids: List[UUID]
         cmd = _build_sql_requesting_filmworks_ids_with_entity(entity, entity_ids, last_seen_modified)
         filmworks = _db_execute(cmd)
         if filmworks:
-            state.set(state_key, filmworks[-1]["modified"])
+            state.save(state_key, filmworks[-1]["modified"])
             yield [fw["id"] for fw in filmworks]
         else:
             state.reset(state_key)
@@ -102,9 +102,10 @@ def _get_filmworks_by_ids(filmwork_ids: List[UUID]) -> List[SearchEngineFilmwork
 
 
 @backoff(exceptions=(OperationalError,))
-def _db_execute(cmd: str) -> Any:
-    with conn.cursor() as curs:
-        return curs.execute(cmd).fetchall()
+def _db_execute(cmd: str) -> Dict[str, Any]:
+    with conn_pool.connection() as conn:
+        conn.row_factory=dict_row
+        return conn.execute(cmd).fetchall()
 
 
 def _normalize_filmworks(filmworks: List[Dict[str, Any]]) -> List[SearchEngineFilmwork]:
