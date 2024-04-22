@@ -16,7 +16,6 @@ load-dotenv==0.1.0
 mccabe==0.7.0
 mypy==1.9.0
 mypy-extensions==1.0.0
-pkg_resources==0.0.0
 platformdirs==4.2.0
 psycopg==3.1.18
 psycopg-pool==3.2.1
