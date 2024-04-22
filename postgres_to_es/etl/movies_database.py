@@ -1,4 +1,3 @@
-import os
 from typing import Any, Dict, List, Iterator, Optional
 from uuid import UUID
 from datetime import datetime
@@ -6,21 +5,19 @@ from datetime import datetime
 from psycopg.rows import dict_row
 from psycopg.errors import OperationalError
 from psycopg_pool import ConnectionPool
-from dotenv import load_dotenv
 
 from etl.search_engine import SearchEngineFilmwork
 from etl.logger import logger
 from etl.backoff import backoff
+from etl.settings import settings
 from etl import state
-
-load_dotenv()
 
 _CHUNK_SIZE = 100
 
 conninfo = ("postgresql://"
-            f"{os.environ.get('POSTGRES_USER')}:{os.environ.get('POSTGRES_PASSWORD')}@"
-            f"{os.environ.get('POSTGRES_HOST')}:{os.environ.get('POSTGRES_PORT')}/"
-            f"{os.environ.get('POSTGRES_DB')}")
+            f"{settings.postgres_user}:{settings.postgres_password}@"
+            f"{settings.postgres_host}:{settings.postgres_port}/"
+            f"{settings.postgres_db}")
 conn_pool = ConnectionPool(conninfo, min_size=1, max_size=1)
 
 

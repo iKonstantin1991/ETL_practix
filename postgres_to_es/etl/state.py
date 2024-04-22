@@ -1,17 +1,15 @@
-import os
 from datetime import datetime
 
 from redis import Redis
-from dotenv import load_dotenv
 
-load_dotenv()
+from etl.settings import settings
 
 _STATE_KEY = "etl_state"
 
 redis = Redis(
-    host=os.environ.get('REDIS_HOST'),
-    port=os.environ.get('REDIS_PORT'),
-    db=os.environ.get('REDIS_DB'),
+    host=settings.redis_host,
+    port=settings.redis_port,
+    db=settings.redis_db,
     decode_responses=True
 )
 

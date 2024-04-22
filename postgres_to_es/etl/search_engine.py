@@ -5,15 +5,11 @@ import json
 
 import httpx
 from pydantic import BaseModel, model_validator
-from dotenv import load_dotenv
 
 from etl.backoff import backoff
 from etl.logger import logger
+from etl.settings import settings
 
-load_dotenv()
-
-_SEARCH_ENGINE_HOST = os.environ.get('ELASTIC_SEARCH_HOST')
-_SEARCH_ENGINE_PORT = os.environ.get('ELASTIC_SEARCH_PORT')
 _INDEX_NAME = "movies"
 
 
@@ -43,7 +39,7 @@ class SearchEngineFilmwork(BaseModel):
 @backoff(exceptions=(httpx.RequestError,))
 def load(filmworks: List[SearchEngineFilmwork]) -> None:
     response = httpx.post(
-        f"http://{_SEARCH_ENGINE_HOST}:{_SEARCH_ENGINE_PORT}/_bulk",
+        f"http://{settings.elastic_search_host}:{settings.elastic_search_port}/_bulk",
         content=_form_content(filmworks),
         headers={"Content-Type": "application/x-ndjson"}
     )
@@ -53,7 +49,7 @@ def load(filmworks: List[SearchEngineFilmwork]) -> None:
 def create_index() -> None:
     try:
         response = httpx.put(
-            f"http://{_SEARCH_ENGINE_HOST}:{_SEARCH_ENGINE_PORT}/{_INDEX_NAME}",
+            f"http://{settings.elastic_search_host}:{settings.elastic_search_port}/{_INDEX_NAME}",
             content=_get_index_schema(),
             headers={"Content-Type": "application/json"},
         )
