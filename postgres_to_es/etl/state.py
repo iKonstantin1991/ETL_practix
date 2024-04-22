@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 _STATE_KEY = "etl_state"
-_DEFAULT_STATE = "1980-04-01T00:00:00.000000"  # just date from the distant past
 
 redis = Redis(
     host=os.environ.get('REDIS_HOST'),
@@ -22,7 +21,8 @@ def save(key: str, value: datetime) -> None:
 
 
 def get(key: str) -> datetime:
-    return datetime.fromisoformat(redis.hget(_STATE_KEY, key) or _DEFAULT_STATE)
+    cached = redis.hget(_STATE_KEY, key)
+    return datetime.fromisoformat(cached) if cached else datetime.min
 
 
 def reset(key: str) -> None:
