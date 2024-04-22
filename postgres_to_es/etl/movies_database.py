@@ -55,7 +55,7 @@ def _get_updated_filmworks() -> Iterator[List[SearchEngineFilmwork]]:
             yield _normalize_filmworks(filmworks)
         else:
             should_generate = False
-            logger.info(f"Seen {seen_filmworks_count} updates for filmwork: {last_seen_modified}")
+            logger.info("Seen %s updates for filmwork: %s", seen_filmworks_count, last_seen_modified)
 
 
 def _get_filmorks_with_updated_related_entities(entity: str) -> Iterator[List[SearchEngineFilmwork]]:
@@ -78,7 +78,7 @@ def _get_updated_related_entities_ids(entity: str) -> Iterator[List[UUID]]:
             yield [e["id"] for e in entities]
         else:
             should_generate = False
-            logger.info(f"Seen {seen_entities_count} updates for {entity}: {last_seen_modified}")
+            logger.info("Seen %s updates for %s: %s", seen_entities_count, entity, last_seen_modified)
 
 
 def _get_filmworks_ids_with_related_entities(entity: str, entity_ids: List[UUID]) -> Iterator[List[UUID]]:

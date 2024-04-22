@@ -58,7 +58,7 @@ def create_index() -> None:
             headers={"Content-Type": "application/json"},
         )
         response.raise_for_status()
-        logger.info(f"Created new index: {_INDEX_NAME}")
+        logger.info("Created new index: %s", _INDEX_NAME)
     except httpx.HTTPStatusError as e:
         if not e.response.status_code == httpx.codes.BAD_REQUEST:
             raise
