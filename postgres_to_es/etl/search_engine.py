@@ -64,7 +64,7 @@ def create_index() -> None:
 
 
 def _get_index_schema() -> str:
-    with open("./schema_es.json", encoding="utf-8") as f:
+    with open("./schema_movies_es.json", encoding="utf-8") as f:
         return f.read()
 
 
