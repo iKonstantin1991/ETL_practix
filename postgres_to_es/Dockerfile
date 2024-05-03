@@ -12,4 +12,4 @@ RUN pip install --upgrade pip && \
 
 COPY . .
 
-ENTRYPOINT ["python", "-m", "main"]
+ENTRYPOINT ["python", "-m", "etl"]

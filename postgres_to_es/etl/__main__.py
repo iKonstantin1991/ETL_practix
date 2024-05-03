@@ -1,6 +1,6 @@
 import time
 
-from etl import movies_database, search_engine
+from . import movies_database, search_engine
 
 _MOVIES_DATABASE_UPDATES_CHECK_PERIOD_SECONDS = 10
 
