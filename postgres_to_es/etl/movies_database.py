@@ -151,7 +151,9 @@ def _build_sql_requesting_filmworks(ids: Optional[List[UUID]] = None,
                                                              'id', p.id,
                                                              'name', p.full_name)) FILTER (WHERE p.id is not null),
                         '[]') as personas,
-               array_agg(DISTINCT g.name) as genres
+               COALESCE(json_agg(DISTINCT jsonb_build_object('id', g.id,
+                                                             'name', g.name)) FILTER (WHERE g.id is not null),
+                        '[]') as genres
         FROM content.film_work fw
         LEFT JOIN content.person_film_work pfw ON pfw.film_work_id = fw.id
         LEFT JOIN content.person p ON p.id = pfw.person_id

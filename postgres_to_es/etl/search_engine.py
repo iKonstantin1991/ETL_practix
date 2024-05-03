@@ -16,7 +16,7 @@ _INDEX_NAME = "movies"
 class SearchEngineFilmwork(BaseModel):
     id: UUID
     imdb_rating: Optional[float]
-    genres: List[str]
+    genres: List[Dict[str, str]]
     title: str
     description: Optional[str]
     directors_names: List[str]
