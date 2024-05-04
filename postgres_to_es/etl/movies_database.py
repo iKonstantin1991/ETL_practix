@@ -5,8 +5,9 @@ from datetime import datetime
 from psycopg.rows import dict_row
 from psycopg.errors import OperationalError
 from psycopg_pool import ConnectionPool
+from pydantic import BaseModel
 
-from etl.search_engine import SearchEngineFilmwork
+from etl.search_engine import SearchEngineFilmwork, SearchEngineGenre
 from etl.logger import logger
 from etl.backoff import backoff
 from etl.settings import settings
@@ -19,6 +20,24 @@ conninfo = ("postgresql://"
             f"{settings.postgres_host}:{settings.postgres_port}/"
             f"{settings.postgres_db}")
 conn_pool = ConnectionPool(conninfo, min_size=1, max_size=1)
+
+
+def get_updated_genres() -> Iterator[List[SearchEngineGenre]]:
+    logger.info("Getting updated genres")
+    state_key = _get_state_key("genre")
+    seen_genres_count = 0
+    should_generate = True
+    while should_generate:
+        last_seen_modified = state.get(state_key)
+        cmd = _build_sql_requesting_genres(last_seen_modified=last_seen_modified)
+        genres = _db_execute(cmd)
+        if genres:
+            state.save(state_key, genres[-1]["modified"])
+            seen_genres_count += len(genres)
+            yield _normalize(genres, SearchEngineGenre)
+        else:
+            should_generate = False
+            logger.info("Seen %s updates for genres: %s", seen_genres_count, last_seen_modified)
 
 
 def get_updated_filmworks() -> Iterator[List[SearchEngineFilmwork]]:
@@ -49,7 +68,7 @@ def _get_updated_filmworks() -> Iterator[List[SearchEngineFilmwork]]:
         if filmworks:
             state.save(state_key, filmworks[-1]["modified"])
             seen_filmworks_count += len(filmworks)
-            yield _normalize_filmworks(filmworks)
+            yield _normalize(filmworks, SearchEngineFilmwork)
         else:
             should_generate = False
             logger.info("Seen %s updates for filmwork: %s", seen_filmworks_count, last_seen_modified)
@@ -62,7 +81,7 @@ def _get_filmorks_with_updated_related_entities(entity: str) -> Iterator[List[Se
 
 
 def _get_updated_related_entities_ids(entity: str) -> Iterator[List[UUID]]:
-    state_key = _get_state_key(entity)
+    state_key = _get_state_key(f"{entity}_related")
     seen_entities_count = 0
     should_generate = True
     while should_generate:
@@ -95,7 +114,7 @@ def _get_filmworks_ids_with_related_entities(entity: str, entity_ids: List[UUID]
 
 def _get_filmworks_by_ids(filmwork_ids: List[UUID]) -> List[SearchEngineFilmwork]:
     cmd = _build_sql_requesting_filmworks(filmwork_ids)
-    return _normalize_filmworks(_db_execute(cmd))
+    return _normalize(_db_execute(cmd), SearchEngineFilmwork)
 
 
 @backoff(exceptions=(OperationalError,))
@@ -105,8 +124,8 @@ def _db_execute(cmd: str) -> List[Dict[str, Any]]:
         return conn.execute(cmd).fetchall()
 
 
-def _normalize_filmworks(filmworks: List[Dict[str, Any]]) -> List[SearchEngineFilmwork]:
-    return [SearchEngineFilmwork.parse_obj(fw) for fw in filmworks]
+def _normalize(data: List[Dict[str, Any]], model: BaseModel) -> List[BaseModel]:
+    return [model.parse_obj(i) for i in data]
 
 
 def _build_sql_requesting_entity(entity: str, last_seen_modified: datetime) -> str:
@@ -163,6 +182,16 @@ def _build_sql_requesting_filmworks(ids: Optional[List[UUID]] = None,
         GROUP BY fw.id
         ORDER BY fw.modified
         {limit}
+    """
+
+
+def _build_sql_requesting_genres(last_seen_modified: datetime) -> str:
+    return f"""
+        SELECT id, name, modified
+        FROM content.genre
+        WHERE modified > '{last_seen_modified.isoformat()}'
+        ORDER BY modified
+        LIMIT {_CHUNK_SIZE}
     """
 
 
