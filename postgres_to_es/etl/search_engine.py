@@ -1,7 +1,8 @@
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 import json
+from enum import Enum
 
 import httpx
 from pydantic import BaseModel, model_validator
@@ -10,13 +11,17 @@ from etl.backoff import backoff
 from etl.logger import logger
 from etl.settings import settings
 
-_INDEX_NAME = "movies"
+
+class Index(str, Enum):
+    MOVIES = "movies"
+    GENRES = "genres"
+    PERSONAS = "personas"
 
 
 class SearchEngineFilmwork(BaseModel):
     id: UUID
     imdb_rating: Optional[float]
-    genres: List[str]
+    genres: List[Dict[str, str]]
     title: str
     description: Optional[str]
     directors_names: List[str]
@@ -36,25 +41,61 @@ class SearchEngineFilmwork(BaseModel):
         return input_data
 
 
+class SearchEngineGenre(BaseModel):
+    id: UUID
+    name: str
+
+
+class PersonaFilmwork(BaseModel):
+    id: UUID
+    roles: List[str]
+
+
+class SearchEnginePerson(BaseModel):
+    id: UUID
+    full_name: str
+    films: List[PersonaFilmwork]
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_films(cls, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        films = {}
+        for pfw in input_data["films"]:
+            fw_id, role = pfw["id"], pfw["role"]
+            if fw_id in films:
+                films[fw_id].roles.append(role)
+            else:
+                films[fw_id] = PersonaFilmwork(id=fw_id, roles=[role])
+
+        input_data["films"] = films.values()
+        return input_data
+
+
 @backoff(exceptions=(httpx.RequestError,))
-def load(filmworks: List[SearchEngineFilmwork]) -> None:
+def load(index: Index,
+         entity: List[Union[SearchEngineFilmwork, SearchEngineGenre, SearchEnginePerson]]) -> None:
     response = httpx.post(
         f"http://{settings.elastic_search_host}:{settings.elastic_search_port}/_bulk",
-        content=_form_content(filmworks),
+        content=_form_content(index, entity),
         headers={"Content-Type": "application/x-ndjson"}
     )
     response.raise_for_status()
 
 
-def create_index() -> None:
+def create_indexes(*indexes: Index) -> None:
+    for index in indexes:
+        _create_index(index)
+
+
+def _create_index(index: Index) -> None:
     try:
         response = httpx.put(
-            f"http://{settings.elastic_search_host}:{settings.elastic_search_port}/{_INDEX_NAME}",
-            content=_get_index_schema(),
+            f"http://{settings.elastic_search_host}:{settings.elastic_search_port}/{index}",
+            content=_get_index_schema(index),
             headers={"Content-Type": "application/json"},
         )
         response.raise_for_status()
-        logger.info("Created new index: %s", _INDEX_NAME)
+        logger.info("Created new index: %s", index)
     except httpx.HTTPStatusError as e:
         if not e.response.status_code == httpx.codes.BAD_REQUEST:
             raise
@@ -63,16 +104,17 @@ def create_index() -> None:
             raise
 
 
-def _get_index_schema() -> str:
-    with open("./schema_es.json", encoding="utf-8") as f:
+def _get_index_schema(index: Index) -> str:
+    with open(f"./schema_{index}_es.json", encoding="utf-8") as f:
         return f.read()
 
 
-def _form_content(filmworks: List[SearchEngineFilmwork]) -> str:
-    filmworks_items = []
-    for fw in filmworks:
-        filmworks_items += [
-            json.dumps({"index": {"_index": _INDEX_NAME, "_id": str(fw.id)}}),
-            fw.json(),
+def _form_content(index: Index,
+                  entities: List[Union[SearchEngineFilmwork, SearchEngineGenre, SearchEnginePerson]]) -> str:
+    items = []
+    for e in entities:
+        items += [
+            json.dumps({"index": {"_index": index, "_id": str(e.id)}}),
+            e.json(),
         ]
-    return os.linesep.join(filmworks_items) + os.linesep
+    return os.linesep.join(items) + os.linesep
