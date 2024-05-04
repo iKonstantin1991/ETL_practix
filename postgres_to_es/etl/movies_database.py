@@ -7,7 +7,7 @@ from psycopg.errors import OperationalError
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel
 
-from etl.search_engine import SearchEngineFilmwork, SearchEngineGenre
+from etl.search_engine import SearchEngineFilmwork, SearchEngineGenre, SearchEnginePerson
 from etl.logger import logger
 from etl.backoff import backoff
 from etl.settings import settings
@@ -38,6 +38,24 @@ def get_updated_genres() -> Iterator[List[SearchEngineGenre]]:
         else:
             should_generate = False
             logger.info("Seen %s updates for genres: %s", seen_genres_count, last_seen_modified)
+
+
+def get_updated_personas() -> Iterator[List[SearchEnginePerson]]:
+    logger.info("Getting updated personas")
+    state_key = _get_state_key("person")
+    seen_personas_count = 0
+    should_generate = True
+    while should_generate:
+        last_seen_modified = state.get(state_key)
+        cmd = _build_sql_requesting_personas(last_seen_modified=last_seen_modified)
+        personas = _db_execute(cmd)
+        if personas:
+            state.save(state_key, personas[-1]["modified"])
+            seen_personas_count += len(personas)
+            yield _normalize(personas, SearchEnginePerson)
+        else:
+            should_generate = False
+            logger.info("Seen %s updates for personas: %s", seen_personas_count, last_seen_modified)
 
 
 def get_updated_filmworks() -> Iterator[List[SearchEngineFilmwork]]:
@@ -191,6 +209,21 @@ def _build_sql_requesting_genres(last_seen_modified: datetime) -> str:
         FROM content.genre
         WHERE modified > '{last_seen_modified.isoformat()}'
         ORDER BY modified
+        LIMIT {_CHUNK_SIZE}
+    """
+
+
+def _build_sql_requesting_personas(last_seen_modified: datetime) -> str:
+    return f"""
+        SELECT p.id,
+               p.full_name,
+               p.modified,
+               json_agg(DISTINCT jsonb_build_object('id', pfw.film_work_id, 'role', pfw.role)) as films
+        FROM content.person p
+        LEFT JOIN content.person_film_work pfw ON p.id = pfw.person_id
+        WHERE p.modified > '{last_seen_modified.isoformat()}'
+        GROUP BY p.id
+        ORDER BY p.modified
         LIMIT {_CHUNK_SIZE}
     """
 

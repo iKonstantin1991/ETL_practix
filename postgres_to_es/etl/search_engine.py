@@ -46,9 +46,34 @@ class SearchEngineGenre(BaseModel):
     name: str
 
 
+class PersonaFilmwork(BaseModel):
+    id: UUID
+    roles: List[str]
+
+
+class SearchEnginePerson(BaseModel):
+    id: UUID
+    full_name: str
+    films: List[PersonaFilmwork]
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_films(cls, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        films = {}
+        for pfw in input_data["films"]:
+            fw_id, role = pfw["id"], pfw["role"]
+            if fw_id in films:
+                films[fw_id].roles.append(role)
+            else:
+                films[fw_id] = PersonaFilmwork(id=fw_id, roles=[role])
+
+        input_data["films"] = films.values()
+        return input_data
+
+
 @backoff(exceptions=(httpx.RequestError,))
 def load(index: Index,
-         entity: List[Union[SearchEngineFilmwork, SearchEngineGenre]]) -> None:
+         entity: List[Union[SearchEngineFilmwork, SearchEngineGenre, SearchEnginePerson]]) -> None:
     response = httpx.post(
         f"http://{settings.elastic_search_host}:{settings.elastic_search_port}/_bulk",
         content=_form_content(index, entity),
@@ -85,7 +110,7 @@ def _get_index_schema(index: Index) -> str:
 
 
 def _form_content(index: Index,
-                  entities: List[Union[SearchEngineFilmwork, SearchEngineGenre]]) -> str:
+                  entities: List[Union[SearchEngineFilmwork, SearchEngineGenre, SearchEnginePerson]]) -> str:
     items = []
     for e in entities:
         items += [
