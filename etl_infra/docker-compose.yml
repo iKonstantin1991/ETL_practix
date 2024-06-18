@@ -1,10 +1,10 @@
 version: '3'
 
 services:
-  pg:
+  etl_pg:
     image: postgres:16
     volumes:
-      - postgres_data:/var/lib/postgresql/data/
+      - etl_pg_data:/var/lib/postgresql/data/
     expose:
       - "5432"
     env_file:
@@ -15,10 +15,10 @@ services:
       timeout: 5s
       retries: 5
 
-  es:
+  etl_es:
     image: elasticsearch:8.6.2
     volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
+      - etl_es_data:/usr/share/elasticsearch/data
     expose:
       - "9200"
     environment:
@@ -34,10 +34,10 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
+  etl_redis:
     image: redis:7.2.4
     volumes:
-      - redis_data:/data
+      - etl_redis_data:/data
     expose:
       - "6379"
     healthcheck:
@@ -51,18 +51,17 @@ services:
       context: ../postgres_to_es
       dockerfile: Dockerfile
     depends_on:
-      pg:
+      etl_pg:
         condition: service_healthy
-      es:
+      etl_es:
         condition: service_healthy
-      redis:
+      etl_redis:
         condition: service_healthy
     restart: always
     env_file:
       - ../postgres_to_es/.env
 
 volumes:
-  postgres_data:
-    external: true
-  elasticsearch_data:
-  redis_data:
+  etl_pg_data:
+  etl_es_data:
+  etl_redis_data:
